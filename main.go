@@ -10,9 +10,11 @@ import (
 
 	"go-backend/config"
 	"go-backend/routes"
+	"go-backend/utils"
 )
 
 func main() {
+	utils.InitSecret()
 
 	err := godotenv.Load()
 	if err != nil {

@@ -1,23 +1,43 @@
 package main
 
 import (
-	"fmt"
-	"net/http"
+	// "fmt"
 	"log"
+	"net/http"
+	"os"
+
+	"github.com/joho/godotenv"
+
+	"go-backend/config"
+	"go-backend/routes"
 )
 
+func main() {
 
-func main(){
-	http.HandleFunc("/",func(w http.ResponseWriter , r *http.Request){
-		fmt.Fprintln(w, "Hello from Go server!")
+	err := godotenv.Load()
+	if err != nil {
+		log.Println(".env file not found, loading environment variables from OS")
+	}
+
+	//connect DB
+	config.ConnectDB()
+
+	// create router (mux)
+	mux := http.NewServeMux()
+
+	// register routes
+	routes.AuthRoutes(mux)
+
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("Server running with MongoDB 🚀"))
 	})
 
-	fmt.Println("starting server...")
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	log.Println("Server running on port", port)
 
-	log.Fatal(http.ListenAndServe(":8080",nil))
-
-	// if err != nil{
-	// 	fmt.Println(err)
-	// }
-
+	log.Fatal(http.ListenAndServe(":"+port, mux))
+	
 }

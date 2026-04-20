@@ -13,6 +13,7 @@ import (
 	"go-backend/models"
 	"go-backend/utils"
 
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -58,11 +59,11 @@ func Register(w http.ResponseWriter, r *http.Request) {
 
 	// setting token into cookie
 	cookie := &http.Cookie{
-		Name : "token",
-		Value: token,
+		Name:     "token",
+		Value:    token,
 		HttpOnly: true,
-		Path: "/",
-		MaxAge: 7600,
+		Path:     "/",
+		MaxAge:   7600,
 	}
 	http.SetCookie(w, cookie)
 
@@ -75,4 +76,70 @@ func Register(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
+}
+
+func Login(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "method is not post", 405)
+		return
+	}
+
+	var user models.User
+	err := json.NewDecoder(r.Body).Decode(&user)
+	if err != nil {
+		http.Error(w, "invalid request payload", http.StatusBadRequest)
+		return
+	}
+
+	collection := config.DB.Collection("users")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	filter := bson.M{
+		"email": user.Email,
+	}
+
+	result := collection.FindOne(ctx, filter)
+
+	var foundUser models.User
+
+	err = result.Decode(&foundUser)
+
+	if err != nil {
+		http.Error(w, "user not found", 404)
+		return
+	}
+
+	if user.Password != foundUser.Password {
+		http.Error(w, "invalid password", 401)
+		return
+	}
+
+	token, err := utils.GenerateToken(foundUser.ID.Hex(), foundUser.Email)
+
+	if err != nil {
+		log.Println("Token error:", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+
+	cookie := &http.Cookie{
+		Name:     "token",
+		Value:    token,
+		Path:     "/",
+		HttpOnly: true,
+		MaxAge:   7600,
+	}
+
+	http.SetCookie(w, cookie)
+
+	response := map[string]interface{}{
+		"message": "user logged in successfully",
+		"user_Id": foundUser.ID.Hex(),
+		"token":   token,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+
 }
